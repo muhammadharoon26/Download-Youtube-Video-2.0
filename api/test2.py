@@ -35,11 +35,10 @@ class YouTubeDownloader:
     def download(self, video_url, video_id, title, format_key):
         if format_key not in self.formats:
             return None
-        
         format_config = self.formats[format_key]
         download_key = format_config["download_key"]
 
-        for attempt in range(1, self.max_retries + 1):
+        for attempt in range(self.max_retries):
             try:
                 payload = {
                     "id": video_id,
@@ -53,14 +52,11 @@ class YouTubeDownloader:
                 self.headers["x-note"] = format_config["note"]
                 response = requests.post(self.base_url, headers=self.headers, data=payload)
                 response_json = response.json()
-
                 if response_json.get("status") == "success" and download_key in response_json:
                     return response_json[download_key]
+                time.sleep(3)
             except Exception:
-                pass
-
-            # Back-off strategy for retries
-            time.sleep(2 * attempt)  # Increase delay with attempts
+                time.sleep(3)
         return None
 
 class VideoRequest(BaseModel):
@@ -73,10 +69,11 @@ async def download_video(request: VideoRequest):
     video_id = "ypwjF/ZPYN6kI06qjQn2C7dtkDtfZwhwUux5GAgxRbSUbEYH92ehW+4bV8+cy37Q4OAPwxKFOPwWgTuS93pyvCWeopjS4wKyMIpreLr4+O0="
     formats_to_try = ["mp3_128k", "mp4_360p", "mp4_720p", "mp4_1080p"]
 
-    results = {}
+    results = {format_key: "" for format_key in formats_to_try}
     for format_key in formats_to_try:
         download_url = downloader.download(request.video_url, video_id, request.title, format_key)
         results[format_key] = download_url or ""
+        time.sleep(5)
 
     if all(not url for url in results.values()):
         raise HTTPException(status_code=500, detail="Failed to generate download URLs")
