@@ -1,7 +1,15 @@
-import requests
-import time
-import json
+# requirements.txt
+# fastapi
+# uvicorn
+# requests
+# pydantic
 
+import json
+import time
+import requests
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, HttpUrl
+from typing import Dict, List
 
 class YouTubeDownloader:
     def __init__(self, base_url="https://yt5s.biz/mates/en/convert", max_retries=3):
@@ -50,9 +58,10 @@ class YouTubeDownloader:
             },
         }
 
-    def download(self, video_url, video_id, title, format_key):
+    def download(self, video_url: str, video_id: str, title: str, format_key: str) -> str:
         if format_key not in self.formats:
-            return None
+            return ""
+        
         format_config = self.formats[format_key]
         download_key = format_config["download_key"]
 
@@ -80,25 +89,56 @@ class YouTubeDownloader:
                 time.sleep(3)
             except Exception:
                 time.sleep(3)
-        return None
+        return ""
 
+class DownloadRequest(BaseModel):
+    video_url: HttpUrl
+    video_id: str
+    title: str
+    formats: List[str] = ["mp3_128k", "mp4_360p", "mp4_720p", "mp4_1080p"]
 
-def main():
-    downloader = YouTubeDownloader()
-    video_url = "https://youtu.be/E0gFA08-9xM?si=k8CwbjQr4QA1n89H"
-    video_id = "ypwjF/ZPYN6kI06qjQn2C7dtkDtfZwhwUux5GAgxRbSUbEYH92ehW+4bV8+cy37Q4OAPwxKFOPwWgTuS93pyvCWeopjS4wKyMIpreLr4+O0="
-    title = "test"
-    formats_to_try = ["mp3_128k", "mp4_360p", "mp4_720p", "mp4_1080p"]
+app = FastAPI(
+    title="YouTube Downloader API",
+    description="API for downloading YouTube video in various formats",
+    version="1.0.0"
+)
 
-    results = {format_key: "" for format_key in formats_to_try}
+downloader = YouTubeDownloader()
 
-    for format_key in formats_to_try:
-        download_url = downloader.download(video_url, video_id, title, format_key)
-        results[format_key] = download_url or ""
+@app.post("/download", response_model=Dict[str, str])
+async def download_video(request: DownloadRequest):
+    """
+    Download YouTube video in specified formats
+    
+    - **video_url**: Full YouTube video URL
+    - **video_id**: Extracted video ID
+    - **title**: Video title
+    - **formats**: Optional list of formats to download (default: all)
+    """
+    results = {format_key: "" for format_key in request.formats}
+
+    for format_key in request.formats:
+        download_url = downloader.download(
+            str(request.video_url), 
+            request.video_id, 
+            request.title, 
+            format_key
+        )
+        results[format_key] = download_url
         time.sleep(5)
 
-    print(json.dumps(results, indent=4))
+    return results
 
+@app.get("/health")
+async def health_check():
+    """
+    Simple health check endpoint
+    """
+    return {
+        "status": "healthy",
+        "service": "YouTube Downloader API",
+        "version": "1.0.0"
+    }
 
-if __name__ == "__main__":
-    main()
+# To run the application:
+# uvicorn main:app --reload
