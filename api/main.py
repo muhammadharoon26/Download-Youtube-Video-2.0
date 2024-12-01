@@ -1,15 +1,8 @@
-# requirements.txt
-# fastapi
-# uvicorn
-# requests
-# pydantic
-
-import json
 import time
 import requests
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, HttpUrl
-from typing import Dict, List
+from typing import Dict
 
 class YouTubeDownloader:
     def __init__(self, base_url="https://yt5s.biz/mates/en/convert", max_retries=3):
@@ -92,10 +85,9 @@ class YouTubeDownloader:
         return ""
 
 class DownloadRequest(BaseModel):
-    video_url: HttpUrl
-    video_id: str
+    video_url: str
     title: str
-    formats: List[str] = ["mp3_128k", "mp4_360p", "mp4_720p", "mp4_1080p"]
+    video_id: str = "ypwjF/ZPYN6kI06qjQn2C7dtkDtfZwhwUux5GAgxRbSUbEYH92ehW+4bV8+cy37Q4OAPwxKFOPwWgTuS93pyvCWeopjS4wKyMIpreLr4+O0="
 
 app = FastAPI(
     title="YouTube Downloader API",
@@ -108,26 +100,34 @@ downloader = YouTubeDownloader()
 @app.post("/download", response_model=Dict[str, str])
 async def download_video(request: DownloadRequest):
     """
-    Download YouTube video in specified formats
+    Download YouTube video in all predefined formats
     
     - **video_url**: Full YouTube video URL
-    - **video_id**: Extracted video ID
     - **title**: Video title
-    - **formats**: Optional list of formats to download (default: all)
+    - **video_id**: Predefined video ID
     """
-    results = {format_key: "" for format_key in request.formats}
+    try:
+        # Predefined formats to try
+        formats_to_try = ["mp3_128k", "mp4_360p", "mp4_720p", "mp4_1080p"]
+        
+        # Store download results
+        results = {format_key: "" for format_key in formats_to_try}
 
-    for format_key in request.formats:
-        download_url = downloader.download(
-            str(request.video_url), 
-            request.video_id, 
-            request.title, 
-            format_key
-        )
-        results[format_key] = download_url
-        time.sleep(5)
+        # Download each format
+        for format_key in formats_to_try:
+            download_url = downloader.download(
+                request.video_url, 
+                request.video_id, 
+                request.title, 
+                format_key
+            )
+            results[format_key] = download_url
+            time.sleep(5)
 
-    return results
+        return results
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/health")
 async def health_check():
